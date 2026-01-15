@@ -1,0 +1,135 @@
+---
+title: "Coursework - Data Science I"
+author: "Malik Sharkawy, 222234988"
+output:
+  html_notebook:
+    fig_width: 10
+    theme: spacelab
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '3'
+  pdf_document: default
+  html_document:
+    fig_width: 10
+    theme: spacelab
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{=html}
+<script>
+$(document).ready(function() {
+  $items = $('div#TOC li');
+  $items.each(function(idx) {
+    num_ul = $(this).parentsUntil('#TOC').length;
+    $(this).css({'text-indent': num_ul * 10, 'padding-left': 0});
+  });
+
+});
+</script>
+```
+
+```{r setup, warning=FALSE, message=FALSE, echo=FALSE}
+library(svglite)
+library(knitr)
+suppressPackageStartupMessages(library(data.table))
+library(ggplot2)
+knitr::opts_chunk$set(dev = "svglite")
+
+# Put your dataset in the same folder as your R file. This code will set your working directory for this notebook to the folder where the R file is stored. This way I can rerun your code without modifications.
+
+library(rstudioapi)
+setwd(dirname(getActiveDocumentContext()$path))
+```
+
+# Introduction
+
+
+# Collection / Preparation
+
+First of all we will import the libraries, that we need for our project.
+
+```{r}
+library(data.table)
+library(ggplot2)
+library(plot3D)
+library(viridisLite)
+library(FNN)
+library(rpart)
+library(rpart.plot)
+library(viridisLite)
+```
+
+Lets read the input of the dataset and clean for missing data
+
+```{r}
+dt_happiness <- fread(file = "Datasets/WHR_2024.csv", sep = ",")
+dt_happiness <- na.omit(dt_happiness)
+head(dt_happiness) # First 6 lines
+```
+
+# Exploration
+
+Explore your data by means of select summary statistics and visualizations and present interesting findings to your reader.
+
+
+# Models 1 & 2
+## Linear model
+Lets begin to make our model
+
+```{r}
+happiness_lm <- lm(
+  happiness_score ~ 
+  +gdp_per_capita 
+  +social_support
+  +healthy_life_expectancy
+  +freedom_to_make_life_choices
+  +generosity 
+  +perceptions_of_corruption,
+  data = dt_happiness
+)
+```
+
+```{r}
+happiness_lm$coefficients
+```
+
+```{r}
+summary(happiness_lm)
+```
+## Tree model
+```{r}
+happiness_tree <- rpart(
+  happiness_score ~ 
+  +gdp_per_capita 
+  +social_support
+  +healthy_life_expectancy
+  +freedom_to_make_life_choices
+  +generosity 
+  +perceptions_of_corruption,
+  data = dt_happiness,
+  method="anova"
+)
+```
+
+```{r}
+prp(happiness_tree, digits = -3)
+```
+
+```{r}
+happiness_tree
+```
+
+```{r}
+printcp(happiness_tree)
+```
+
+```{r}
+plotcp(happiness_tree)
+```
+
+# Feature Engineering
