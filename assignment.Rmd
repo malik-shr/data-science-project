@@ -48,7 +48,6 @@ setwd(dirname(getActiveDocumentContext()$path))
 
 # Introduction
 
-
 # Collection / Preparation
 
 First of all we will import the libraries, that we need for our project.
@@ -71,7 +70,14 @@ Lets read the input of our dataset
 dt_happiness <- fread(file = "Datasets/WHR_2024.csv", sep = ",")
 ```
 
+First of all I will explore the basic structure of the dataset
+
+```{r}
+str(dt_happiness)
+```
+
 First of all we convert all empty strings to Na, so our omit function can remove rows, where attributes are empty string
+
 ```{r}
 dt_happiness[  
   dt_happiness$country == "" 
@@ -94,26 +100,50 @@ Lets see the first 6 rows of our dataset.
 head(dt_happiness) # First 6 lines
 ```
 
-# Exploration
-
-First of all I will explore the basic structure of the dataset
+Now I will define some reusable functions:
 
 ```{r}
-str(dt_happiness)
+calculate_tree_metrics <- function(model, dataset, key) {
+  y_value <- dataset[[key]]
+  y_pred <- predict(model, dataset)
+  
+  rmse <- sqrt(mean((y_value - y_pred)^2))
+  r2 <- 1 - sum((y_value - y_pred)^2) / sum((y_value - mean(y_value))^2)
+  
+  list(
+    rmse = rmse,
+    r2 = r2
+  )
+}
+
+calculate_lm_metrics <- function(model) {
+  rmse <- sqrt(mean(model$residuals^2))
+  r2 <- summary(model)$r.squared
+  
+  list(
+    rmse = rmse,
+    r2 = r2
+  )
+}
+
 ```
+
+# Exploration
 Lets summarize our data
+
 ```{r}
 summary(dt_happiness)
 ```
 
-
 Now we will have a look at the density of the happiness score.
+
 ```{r}
 ggplot(dt_happiness, aes(x = happiness_score)) +
   geom_density(fill = "steelblue", alpha = 0.5) +
   geom_vline(xintercept = mean(dt_happiness$happiness_score), linetype="dashed")
 ```
-We can see that the happiness_score of most countries is around 5.7 and 6.5. The vertical dashed-line represents, the mean happiness_score. It is at around 5.5. 
+
+We can see that the happiness_score of most countries is around 5.7 and 6.5. The vertical dashed-line represents, the mean happiness_score. It is at around 5.5.
 
 The next plot will visualize the distribution of the happiness score depending on the GDP per capita
 
@@ -121,6 +151,7 @@ The next plot will visualize the distribution of the happiness score depending o
 ggplot(dt_happiness, aes(gdp_per_capita, happiness_score)) +
   geom_point(alpha = 0.5) 
 ```
+
 We can see, that with a higher gdp the happinnes_score is higher on average. We can clearly say a low gdp_per_capita results in a low happiness_score and a high gdp_per_capita results into a high happiness_score. Nevertheless there is a spread at almost every gdp level. That tells us that the gdp can explain some but not all of the happiness.
 
 In the next step I will visualize the gdp distribution for each region.
@@ -131,9 +162,10 @@ ggplot(dt_happiness, aes(region, gdp_per_capita)) +
   coord_flip() 
 ```
 
-We can clearly see that a region occupies a distinct GDP range. The GDP is not distributed randomly. 
+We can clearly see that a region occupies a distinct GDP range. The GDP is not distributed randomly.
 
 Next I want to see the distribution of the happiness score for each region.
+
 ```{r}
 ggplot(dt_happiness, aes(region, happiness_score)) +
   geom_boxplot() +
@@ -143,9 +175,10 @@ ggplot(dt_happiness, aes(region, happiness_score)) +
 We can see major differences between regions, when measuring their happiness score. Western Europe and North America and ANZ achieving the highest score, while Sub-Saharan Africa and South Asia achieving the lowest score. We have smaller boxes such as in North America and ANZ which indicates, that the countries based in the region, have a similar happiness index. Regions with wider boxes, such as countries in the Middle East and North Africa, have a wider distributed happiness score.
 
 # Models 1 & 2
+
 ## Linear model
-Lets begin to make our model. Our dependend variable is the happiness_score and our input variables are:
-the gdp_per_capita, the social_support, the healthy_life_expectancy, the freedom_to_make_life_choices, the generosity and the perceptions_of_corruption
+
+Lets begin to make our model. Our dependend variable is the happiness_score and our input variables are: the gdp_per_capita, the social_support, the healthy_life_expectancy, the freedom_to_make_life_choices, the generosity and the perceptions_of_corruption
 
 ```{r}
 lm <- lm(
@@ -161,25 +194,24 @@ lm <- lm(
 ```
 
 ```{r}
-happiness_lm$coefficients
+lm$coefficients
 ```
 
 ```{r}
 summary(lm)
 ```
-```{r}
-lm_rmse <- sqrt(mean(lm$residuals^2))
-lm_rmse
-```
 
 ```{r}
-lm_r2 <- summary(happiness_lm)$r.squared
-lm_r2
+lm_metrics <- calculate_lm_metrics(lm)
+
+lm_metrics$rmse
+lm_metrics$r2
 ```
 
 That means that the linear regression model explains around 80.5% percent of the variance in the response of the variable.
 
 ## Tree model
+
 ```{r}
 tree <- rpart(
   happiness_score ~ 
@@ -196,10 +228,10 @@ tree <- rpart(
 prp(tree, digits = -3)
 ```
 
-
 ```{r}
 printcp(tree)
 ```
+
 ```{r}
 tree
 ```
@@ -208,50 +240,49 @@ tree
 plotcp(tree)
 ```
 
-
-
 ```{r}
-tree_pred <- predict(tree, dt_happiness)
+tree_metrics <- calculate_tree_metrics(tree, dt_happiness, "happiness_score")
 
-tree_rmse <- sqrt(mean((dt_happiness$happiness_score - tree_pred)^2))
-tree_rmse
+tree_metrics$rmse
+tree_metrics$r2
 ```
 
-```{r}
-tree_r2 <- 1 - sum((dt_happiness$happiness_score - tree_pred)^2) / sum((dt_happiness$happiness_score - mean(dt_happiness$happiness_score))^2)
-
-tree_r2
-```
 That means that the tree regression model explains around 84% percent of the variance in the response of the variable.
 
 ## Comparing
+
 Lets compare the rmse values of the tree and the linear model
 
 ```{r}
-lm_rmse
-tree_rmse
-((lm_rmse - tree_rmse)/lm_rmse) * 100
+((lm_metrics$rmse - tree_metrics$rmse)/lm_metrics$rmse) * 100
 ```
-The regression tree achieves an approximately 9% lower RMSE than the linear model, indicating a improvement in predictive accuracy.
+
+The regression tree achieves an approximately 9.35% lower RMSE than the linear model, indicating a improvement in predictive accuracy.
 
 ```{r}
-(tree_r2 - lm_r2) * 100
+(tree_metrics$r2 - lm_metrics$r2) * 100
 ```
 
 The regression tree explains 3.5 additional percentage points of variance compared to the linear model
-
 
 # Feature Engineering
 
 ## Feature 1
 
-#### Linear Model
+Lets add the feature as a new column to our table
+
+```{r}
+dt_happiness$log_gdp <- log(dt_happiness$gdp_per_capita)
+```
+
+### Linear Model
 
 We will make the gdp as a logarithmic variable
+
 ```{r}
 lm1 <- lm(
   happiness_score ~ 
-  log(gdp_per_capita)
+  log_gdp
   +social_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
@@ -264,16 +295,15 @@ lm1 <- lm(
 Calculate r2 and rmse of our new model
 
 ```{r}
-lm1_rmse <- sqrt(mean(lm1$residuals^2))
-lm1_r2 <- summary(lm1)$r.squared
+lm1_metrics <- calculate_lm_metrics(lm1)
 ```
 
 
-
+### Tree Model
 ```{r}
 tree1 <- rpart(
   happiness_score ~ 
-  log(gdp_per_capita) 
+  log_gdp 
   +social_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
@@ -285,6 +315,7 @@ tree1 <- rpart(
 
 prp(tree1, digits = -3)
 ```
+
 ```{r}
 tree1
 ```
@@ -293,24 +324,26 @@ tree1
 plotcp(tree1)
 ```
 
-
 ```{r}
-tree1_pred <- predict(tree1, dt_happiness)
-
-tree1_rmse <- sqrt(mean((dt_happiness$happiness_score - tree1_pred)^2))
-tree1_r2 <- 1 - sum((dt_happiness$happiness_score - tree1_pred)^2) / sum((dt_happiness$happiness_score - mean(dt_happiness$happiness_score))^2)
+tree1_metrics <- calculate_tree_metrics(tree1, dt_happiness, "happiness_score")
 ```
-
 
 ## Feature 2
 
-#### Linear Model
+Lets add the feature as a new column to our table
+
+```{r}
+dt_happiness$gdp_x_support <- dt_happiness$gdp_per_capita * dt_happiness$social_support
+```
+
+### Linear Model
 
 We will make the gdp as a logarithmic variable
+
 ```{r}
 lm2 <- lm(
   happiness_score ~ 
-  gdp_per_capita*social_support
+  gdp_x_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
   +generosity 
@@ -322,14 +355,12 @@ lm2 <- lm(
 Calculate r2 and rmse of our new model
 
 ```{r}
-lm2_rmse <- sqrt(mean(lm2$residuals^2))
-lm2_r2 <- summary(lm2)$r.squared
+lm2_metrics <- calculate_lm_metrics(lm2)
 ```
 
-
+### Tree Model
 
 ```{r}
-dt_happiness$gdp_x_support <- dt_happiness$gdp_per_capita * dt_happiness$social_supp
 tree2 <- rpart(
   happiness_score ~ 
   gdp_x_support
@@ -343,6 +374,7 @@ tree2 <- rpart(
 
 prp(tree2, digits = -3)
 ```
+
 ```{r}
 tree2
 ```
@@ -351,17 +383,14 @@ tree2
 plotcp(tree2)
 ```
 
-
 ```{r}
-tree2_pred <- predict(tree2, dt_happiness)
-
-tree2_rmse <- sqrt(mean((dt_happiness$happiness_score - tree2_pred)^2))
-tree2_r2 <- 1 - sum((dt_happiness$happiness_score - tree2_pred)^2) / sum((dt_happiness$happiness_score - mean(dt_happiness$happiness_score))^2)
+tree2_metrics <- calculate_tree_metrics(tree2, dt_happiness, "happiness_score")
 ```
 
 # Comparison
+
 ```{r}
-dt_feature1 <- data.table(
+dt_feature <- data.table(
   Model = c(
     "Linear Regression",
     "Linear Regression (Feature 1)",
@@ -371,30 +400,30 @@ dt_feature1 <- data.table(
     "Tree Regression (Feature 2)"
   ),
   RMSE = c(
-    lm_rmse,
-    lm1_rmse,
-    lm2_rmse,
-    tree_rmse,
-    tree1_rmse,
-    tree2_rmse
+    lm_metrics$rmse,
+    lm1_metrics$rmse,
+    lm2_metrics$rmse,
+    tree_metrics$rmse,
+    tree1_metrics$rmse,
+    tree2_metrics$rmse
   ),
   r2 = c(
-    lm_r2,
-    lm1_r2,
-    lm2_r2,
-    tree_r2,
-    tree1_r2,
-    tree2_r2
+    lm_metrics$r2,
+    lm1_metrics$r2,
+    lm2_metrics$r2,
+    tree_metrics$r2,
+    tree1_metrics$r2,
+    tree2_metrics$r2
   )
 )
 
-setorder(dt_feature1, RMSE, -r2)
+setorder(dt_feature, RMSE, -r2)
 
 
 
-dt_feature1[,RMSE_rank := frank(RMSE, ties.method = "min")][,r2_rank := frank(-r2, ties.method = "min")]
+dt_feature[,RMSE_rank := frank(RMSE, ties.method = "min")][,r2_rank := frank(-r2, ties.method = "min")]
 
-dt_feature1
+head(dt_feature)
 ```
 
-
+We can see that the Tree regression model without any features and the tree regression model with Feature 1 are performing the best.
