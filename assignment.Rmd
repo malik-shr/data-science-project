@@ -62,27 +62,93 @@ library(FNN)
 library(rpart)
 library(rpart.plot)
 library(viridisLite)
+library(ggplot2)
 ```
 
-Lets read the input of the dataset and clean for missing data
+Lets read the input of our dataset
 
 ```{r}
 dt_happiness <- fread(file = "Datasets/WHR_2024.csv", sep = ",")
+```
+
+First of all we convert all empty strings to Na, so our omit function can remove rows, where attributes are empty string
+```{r}
+dt_happiness[  
+  dt_happiness$country == "" 
+  | dt_happiness$region == ""
+  | dt_happiness$happiness_score == 0 
+  | dt_happiness$gdp_per_capita == 0 
+  | dt_happiness$social_support == 0
+  | dt_happiness$healthy_life_expectancy == 0
+  | dt_happiness$freedom_to_make_life_choices == 0
+  | dt_happiness$generosity == 0
+  | dt_happiness$perceptions_of_corruption == 0
+] <- NA
+
 dt_happiness <- na.omit(dt_happiness)
+```
+
+Lets see the first 6 rows of our dataset.
+
+```{r}
 head(dt_happiness) # First 6 lines
 ```
 
 # Exploration
 
-Explore your data by means of select summary statistics and visualizations and present interesting findings to your reader.
+First of all I will explore the basic structure of the dataset
 
+```{r}
+str(dt_happiness)
+```
+Lets summarize our data
+```{r}
+summary(dt_happiness)
+```
+
+
+Now we will have a look at the density of the happiness score.
+```{r}
+ggplot(dt_happiness, aes(x = happiness_score)) +
+  geom_density(fill = "steelblue", alpha = 0.5) +
+  geom_vline(xintercept = mean(dt_happiness$happiness_score), linetype="dashed")
+```
+We can see that the happiness_score of most countries is around 5.7 and 6.5. The vertical dashed-line represents, the mean happiness_score. It is at around 5.5. 
+
+The next plot will visualize the distribution of the happiness score depending on the GDP per capita
+
+```{r}
+ggplot(dt_happiness, aes(gdp_per_capita, happiness_score)) +
+  geom_point(alpha = 0.5) 
+```
+We can see, that with a higher gdp the happinnes_score is higher on average. We can clearly say a low gdp_per_capita results in a low happiness_score and a high gdp_per_capita results into a high happiness_score. Nevertheless there is a spread at almost every gdp level. That tells us that the gdp can explain some but not all of the happiness.
+
+In the next step I will visualize the gdp distribution for each region.
+
+```{r}
+ggplot(dt_happiness, aes(region, gdp_per_capita)) +
+  geom_boxplot() +
+  coord_flip() 
+```
+
+We can clearly see that a region occupies a distinct GDP range. The GDP is not distributed randomly. 
+
+Next I want to see the distribution of the happiness score for each region.
+```{r}
+ggplot(dt_happiness, aes(region, happiness_score)) +
+  geom_boxplot() +
+  coord_flip() 
+```
+
+We can see major differences between regions, when measuring their happiness score. Western Europe and North America and ANZ achieving the highest score, while Sub-Saharan Africa and South Asia achieving the lowest score. We have smaller boxes such as in North America and ANZ which indicates, that the countries based in the region, have a similar happiness index. Regions with wider boxes, such as countries in the Middle East and North Africa, have a wider distributed happiness score.
 
 # Models 1 & 2
 ## Linear model
-Lets begin to make our model
+Lets begin to make our model. Our dependend variable is the happiness_score and our input variables are:
+the gdp_per_capita, the social_support, the healthy_life_expectancy, the freedom_to_make_life_choices, the generosity and the perceptions_of_corruption
 
 ```{r}
-happiness_lm <- lm(
+lm <- lm(
   happiness_score ~ 
   +gdp_per_capita 
   +social_support
@@ -99,13 +165,25 @@ happiness_lm$coefficients
 ```
 
 ```{r}
-summary(happiness_lm)
+summary(lm)
 ```
+```{r}
+lm_rmse <- sqrt(mean(lm$residuals^2))
+lm_rmse
+```
+
+```{r}
+lm_r2 <- summary(happiness_lm)$r.squared
+lm_r2
+```
+
+That means that the linear regression model explains around 80.5% percent of the variance in the response of the variable.
+
 ## Tree model
 ```{r}
-happiness_tree <- rpart(
+tree <- rpart(
   happiness_score ~ 
-  +gdp_per_capita 
+  gdp_per_capita 
   +social_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
@@ -114,22 +192,209 @@ happiness_tree <- rpart(
   data = dt_happiness,
   method="anova"
 )
+
+prp(tree, digits = -3)
+```
+
+
+```{r}
+printcp(tree)
+```
+```{r}
+tree
 ```
 
 ```{r}
-prp(happiness_tree, digits = -3)
+plotcp(tree)
+```
+
+
+
+```{r}
+tree_pred <- predict(tree, dt_happiness)
+
+tree_rmse <- sqrt(mean((dt_happiness$happiness_score - tree_pred)^2))
+tree_rmse
 ```
 
 ```{r}
-happiness_tree
+tree_r2 <- 1 - sum((dt_happiness$happiness_score - tree_pred)^2) / sum((dt_happiness$happiness_score - mean(dt_happiness$happiness_score))^2)
+
+tree_r2
 ```
+That means that the tree regression model explains around 84% percent of the variance in the response of the variable.
+
+## Comparing
+Lets compare the rmse values of the tree and the linear model
 
 ```{r}
-printcp(happiness_tree)
+lm_rmse
+tree_rmse
+((lm_rmse - tree_rmse)/lm_rmse) * 100
 ```
+The regression tree achieves an approximately 9% lower RMSE than the linear model, indicating a improvement in predictive accuracy.
 
 ```{r}
-plotcp(happiness_tree)
+(tree_r2 - lm_r2) * 100
 ```
+
+The regression tree explains 3.5 additional percentage points of variance compared to the linear model
+
 
 # Feature Engineering
+
+## Feature 1
+
+#### Linear Model
+
+We will make the gdp as a logarithmic variable
+```{r}
+lm1 <- lm(
+  happiness_score ~ 
+  log(gdp_per_capita)
+  +social_support
+  +healthy_life_expectancy
+  +freedom_to_make_life_choices
+  +generosity 
+  +perceptions_of_corruption,
+  data = dt_happiness
+)
+```
+
+Calculate r2 and rmse of our new model
+
+```{r}
+lm1_rmse <- sqrt(mean(lm1$residuals^2))
+lm1_r2 <- summary(lm1)$r.squared
+```
+
+
+
+```{r}
+tree1 <- rpart(
+  happiness_score ~ 
+  log(gdp_per_capita) 
+  +social_support
+  +healthy_life_expectancy
+  +freedom_to_make_life_choices
+  +generosity 
+  +perceptions_of_corruption,
+  data = dt_happiness,
+  method="anova"
+)
+
+prp(tree1, digits = -3)
+```
+```{r}
+tree1
+```
+
+```{r}
+plotcp(tree1)
+```
+
+
+```{r}
+tree1_pred <- predict(tree1, dt_happiness)
+
+tree1_rmse <- sqrt(mean((dt_happiness$happiness_score - tree1_pred)^2))
+tree1_r2 <- 1 - sum((dt_happiness$happiness_score - tree1_pred)^2) / sum((dt_happiness$happiness_score - mean(dt_happiness$happiness_score))^2)
+```
+
+
+## Feature 2
+
+#### Linear Model
+
+We will make the gdp as a logarithmic variable
+```{r}
+lm2 <- lm(
+  happiness_score ~ 
+  gdp_per_capita*social_support
+  +healthy_life_expectancy
+  +freedom_to_make_life_choices
+  +generosity 
+  +perceptions_of_corruption,
+  data = dt_happiness
+)
+```
+
+Calculate r2 and rmse of our new model
+
+```{r}
+lm2_rmse <- sqrt(mean(lm2$residuals^2))
+lm2_r2 <- summary(lm2)$r.squared
+```
+
+
+
+```{r}
+dt_happiness$gdp_x_support <- dt_happiness$gdp_per_capita * dt_happiness$social_supp
+tree2 <- rpart(
+  happiness_score ~ 
+  gdp_x_support
+  +healthy_life_expectancy
+  +freedom_to_make_life_choices
+  +generosity 
+  +perceptions_of_corruption,
+  data = dt_happiness,
+  method="anova"
+)
+
+prp(tree2, digits = -3)
+```
+```{r}
+tree2
+```
+
+```{r}
+plotcp(tree2)
+```
+
+
+```{r}
+tree2_pred <- predict(tree2, dt_happiness)
+
+tree2_rmse <- sqrt(mean((dt_happiness$happiness_score - tree2_pred)^2))
+tree2_r2 <- 1 - sum((dt_happiness$happiness_score - tree2_pred)^2) / sum((dt_happiness$happiness_score - mean(dt_happiness$happiness_score))^2)
+```
+
+# Comparison
+```{r}
+dt_feature1 <- data.table(
+  Model = c(
+    "Linear Regression",
+    "Linear Regression (Feature 1)",
+    "Linear Model (Feature 2)",
+    "Tree Regression",
+    "Tree Regression (Feature 1)",
+    "Tree Regression (Feature 2)"
+  ),
+  RMSE = c(
+    lm_rmse,
+    lm1_rmse,
+    lm2_rmse,
+    tree_rmse,
+    tree1_rmse,
+    tree2_rmse
+  ),
+  r2 = c(
+    lm_r2,
+    lm1_r2,
+    lm2_r2,
+    tree_r2,
+    tree1_r2,
+    tree2_r2
+  )
+)
+
+setorder(dt_feature1, RMSE, -r2)
+
+
+
+dt_feature1[,RMSE_rank := frank(RMSE, ties.method = "min")][,r2_rank := frank(-r2, ties.method = "min")]
+
+dt_feature1
+```
+
+
