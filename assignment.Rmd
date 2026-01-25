@@ -152,6 +152,32 @@ ggplot(dt_happiness, aes(gdp_per_capita, happiness_score)) +
   geom_point(alpha = 0.5) 
 ```
 
+```{r}
+ggplot(dt_happiness, aes(social_support, happiness_score)) +
+  geom_point(alpha = 0.5) 
+```
+
+```{r}
+ggplot(dt_happiness, aes(freedom_to_make_life_choices, happiness_score)) +
+  geom_point(alpha = 0.5) 
+```
+
+```{r}
+ggplot(dt_happiness, aes(generosity, happiness_score)) +
+  geom_point(alpha = 0.5) 
+```
+
+```{r}
+ggplot(dt_happiness, aes(perceptions_of_corruption, happiness_score)) +
+  geom_point(alpha = 0.5) 
+```
+
+```{r}
+ggplot(dt_happiness, aes(healthy_life_expectancy, happiness_score)) +
+  geom_point(alpha = 0.5) 
+```
+
+
 We can see, that with a higher gdp the happinnes_score is higher on average. We can clearly say a low gdp_per_capita results in a low happiness_score and a high gdp_per_capita results into a high happiness_score. Nevertheless there is a spread at almost every gdp level. That tells us that the gdp can explain some but not all of the happiness.
 
 In the next step I will visualize the gdp distribution for each region.
@@ -281,8 +307,9 @@ We will make the gdp as a logarithmic variable
 
 ```{r}
 lm1 <- lm(
-  happiness_score ~ 
-  log_gdp
+  happiness_score ~
+  gdp_per_capita
+  +log_gdp
   +social_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
@@ -303,7 +330,8 @@ lm1_metrics <- calculate_lm_metrics(lm1)
 ```{r}
 tree1 <- rpart(
   happiness_score ~ 
-  log_gdp 
+  gdp_per_capita
+  +log_gdp 
   +social_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
@@ -343,7 +371,9 @@ We will make the gdp as a logarithmic variable
 ```{r}
 lm2 <- lm(
   happiness_score ~ 
-  gdp_x_support
+  gdp_per_capita
+  +gdp_x_support
+  +social_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
   +generosity 
@@ -363,7 +393,9 @@ lm2_metrics <- calculate_lm_metrics(lm2)
 ```{r}
 tree2 <- rpart(
   happiness_score ~ 
-  gdp_x_support
+  gdp_per_capita
+  +gdp_x_support
+  +social_support
   +healthy_life_expectancy
   +freedom_to_make_life_choices
   +generosity 
@@ -399,7 +431,7 @@ dt_feature <- data.table(
     "Tree Regression (Feature 1)",
     "Tree Regression (Feature 2)"
   ),
-  RMSE = c(
+  rmse = c(
     lm_metrics$rmse,
     lm1_metrics$rmse,
     lm2_metrics$rmse,
@@ -417,13 +449,13 @@ dt_feature <- data.table(
   )
 )
 
-setorder(dt_feature, RMSE, -r2)
+setorder(dt_feature, rmse, -r2)
 
 
 
-dt_feature[,RMSE_rank := frank(RMSE, ties.method = "min")][,r2_rank := frank(-r2, ties.method = "min")]
-
+dt_feature[,rmse_rank := frank(rmse, ties.method = "min")][,r2_rank := frank(-r2, ties.method = "min")]
+ 
 head(dt_feature)
 ```
 
-We can see that the Tree regression model without any features and the tree regression model with Feature 1 are performing the best.
+We can see that the Tree regression model with feature 2 gives us the most precise prediction
